@@ -1,42 +1,50 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <numeric>
 #include <sstream>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
+
+// a proxy to enable the usage of istream_iterator that reads line by line
+struct Reader {
+	std::string line;
+};
+
+// allows the istream_iterator to read a file line by line
+auto& operator>>(std::istream& in, Reader& reader) {
+	return std::getline(in, reader.line);
+}
 
 int main() {
 
-	auto filename = std::string{"rooms.txt"};
+	const auto filename = std::string{"rooms.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
-		auto sum_id = 0UL;
-
 		using Count = std::uintmax_t;
-		using Alphabet = std::unordered_map<char, Count>;
-		auto letter_map = Alphabet{};
+		using LetterMap = std::unordered_map<char, Count>;
+		auto letter_map = LetterMap{};
 
 		auto tokens = std::vector<std::string>{};
 
 		auto sstream = std::stringstream{};
 
-		auto line = std::string{};
-		while(std::getline(file, line)) {
+		std::string line, token;
+
+		auto sum_id = std::accumulate(std::istream_iterator<Reader>{file}, {}, 0UL, [&] (auto acc, const auto& reader) {
 
 			sstream.clear();
-			sstream.str(line);
+			sstream.str(reader.line);
 
 			tokens.clear();
-
-			auto token = std::string{};
 			while(sstream >> token) {
 				tokens.push_back(token);
 			}
 
-			// count letters from first (size()-2) tokens
 			letter_map.clear();
 			std::for_each(tokens.begin(), (tokens.end() - 2), [&letter_map] (const auto& token) {
 				for(const auto letter : token) {
@@ -44,48 +52,30 @@ int main() {
 				}
 			});
 
-			// check if checksum has the correct order
+			// last token is always the checksum
 			const auto& checksum = tokens.back();
 
-			auto checksum_ok = true;
-			for(auto it = std::next(checksum.begin()); (it != checksum.end()) && checksum_ok; ++it) {
-
-				auto curr_letter = *it;
-				auto prev_letter = *std::prev(it);
-
-				auto curr_letter_count = letter_map[curr_letter];
+			// adjacent_find returns the iterator to the first pair of elements for which the predicate returns true.
+			// In this particular case, the intent is to find out if the checksum has a valid ordering of its letters,
+			// i.e letters are first sorted by frequency, then by alphabet. We want adjacent_find to return the end()
+			// iterator to indicate a valid checksum, thus we negate the result of our validation.
+			const auto validator = std::adjacent_find(checksum.begin(), checksum.end(),
+													  [&] (const auto prev_letter, const auto curr_letter) {
 				auto prev_letter_count = letter_map[prev_letter];
+				auto curr_letter_count = letter_map[curr_letter];
 
-				if(curr_letter_count == 0 || prev_letter_count == 0) {
-					checksum_ok = false;
-					continue;
-				}
+				auto letters_exist = (prev_letter_count > 0 && curr_letter_count > 0);
+				auto ordered_by_frequency = (prev_letter_count > curr_letter_count);
+				auto tied_by_frequency = (prev_letter_count == curr_letter_count);
+				auto ordered_by_alphabet = (prev_letter < curr_letter);
 
-				if(curr_letter_count < prev_letter_count) {
-					checksum_ok = true;
-				} else if(curr_letter_count == prev_letter_count) {
+				return !(letters_exist && (ordered_by_frequency || (tied_by_frequency && ordered_by_alphabet)));
+			});
 
-					if(curr_letter > prev_letter) {
-						checksum_ok = true;
-					} else {
-						checksum_ok = false;
-					}
-				} else {
-					checksum_ok = false;
-				}
-			}
+			auto checksum_ok = (validator == checksum.end());
 
-			std::cout << checksum << " -> ";
-
-			for(const auto letter : checksum) {
-				std::cout << letter_map[letter] << ",";
-			}
-
-			std::cout << std::boolalpha << checksum_ok << std::endl;
-
-			if(checksum_ok) { sum_id += std::stoul(tokens[tokens.size()-2]); }
-
-		}
+			return acc + (checksum_ok ? std::stoul(tokens[tokens.size()-2]) : 0);
+		});
 
 		std::cout << sum_id << std::endl;
 
