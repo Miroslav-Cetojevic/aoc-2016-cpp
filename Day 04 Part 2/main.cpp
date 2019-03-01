@@ -10,16 +10,6 @@
 
 #include "prettyprint.hpp"
 
-// a proxy to enable the usage of istream_iterator that reads line by line
-struct Reader {
-	std::string line;
-};
-
-// allows the istream_iterator to read a file line by line
-auto& operator>>(std::istream& in, Reader& reader) {
-	return std::getline(in, reader.line);
-}
-
 int main() {
 
 	const auto filename = std::string{"rooms.txt"};
