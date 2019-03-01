@@ -33,7 +33,7 @@ int main() {
 
 		auto sstream = std::stringstream{};
 
-		std::string line, token;
+		std::string token;
 
 		auto sum_id = std::accumulate(std::istream_iterator<Reader>{file}, {}, 0UL, [&] (auto acc, const auto& reader) {
 
