@@ -26,8 +26,7 @@ int main() {
 
 			for(auto i = 0UL, j = (i + 3); !result && (j < seq.size()); ++i, ++j) {
 
-				result = (seq[i] != seq[i+1])
-						 && ((seq[i] == seq[j]) && (seq[i+1] == seq[j-1]));
+				result = ((seq[i] != seq[i+1]) && (seq[i] == seq[j]) && (seq[i+1] == seq[j-1]));
 			}
 
 			return result;
@@ -43,7 +42,6 @@ int main() {
 
 			return result;
 		};
-
 
 		auto norm_sequences = std::vector<std::string>{};
 		auto hyper_sequences = std::vector<std::string>{};
@@ -63,12 +61,8 @@ int main() {
 			while(sstream >> token) {
 
 				// we know every second sequence is a hypernet sequence
-				if(id++ % 2 == 0) {
-					norm_sequences.push_back(token);
-				} else {
-					hyper_sequences.push_back(token);
-				}
-
+				if(id++ % 2 == 0) { norm_sequences.push_back(token); }
+				else { hyper_sequences.push_back(token); }
 			}
 
 			auto norm_supports_tls = std::any_of(norm_sequences.begin(), norm_sequences.end(), [&] (const auto& seq) {
