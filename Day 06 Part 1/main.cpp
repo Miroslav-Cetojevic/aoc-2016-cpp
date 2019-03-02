@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -36,8 +37,6 @@ int main() {
 
 	if(file.is_open()) {
 
-		auto message = std::string{};
-
 		auto transposed_msg = std::vector<std::string>{};
 
 		auto line = std::string{};
@@ -64,8 +63,8 @@ int main() {
 		auto letter_count = ska::flat_hash_map<char, std::uintmax_t>{};
 		auto max_count = MaxFrequencyLetter{};
 
-		for(const auto& column : transposed_msg) {
-
+		auto message = std::accumulate(transposed_msg.begin(), transposed_msg.end(), std::string{},
+									   [&] (auto& msg, const auto& column) {
 			letter_count.clear();
 
 			for(const auto letter : column) {
@@ -78,8 +77,8 @@ int main() {
 				max_count = std::max(max_count, MaxFrequencyLetter{letter.second, letter.first});
 			}
 
-			message += max_count.letter;
-		}
+			return msg += max_count.letter;
+		});
 
 		std::cout << message << std::endl;
 
