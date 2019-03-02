@@ -77,7 +77,7 @@ int main() {
 				max_count = std::max(max_count, MaxFrequencyLetter{letter.second, letter.first});
 			}
 
-			return msg += max_count.letter;
+			return (msg += max_count.letter);
 		});
 
 		std::cout << message << std::endl;
