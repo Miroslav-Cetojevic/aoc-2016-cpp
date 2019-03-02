@@ -14,34 +14,36 @@ auto& operator>>(std::istream& in, Reader& reader) {
 	return std::getline(in, reader.line);
 }
 
+template<typename S>
+auto has_norm_tls_support(const S& seq) {
+	auto result = false;
+
+	for(auto i = 0UL, j = (i + 3); !result && (j < seq.size()); ++i, ++j) {
+
+		result = ((seq[i] != seq[i+1]) && (seq[i] == seq[j]) && (seq[i+1] == seq[j-1]));
+	}
+
+	return result;
+}
+
+template<typename S>
+auto has_hyper_tls_support(const S& seq) {
+	auto result = true;
+
+	for(auto i = 0UL, j = (i + 3); result && (j < seq.size()); ++i, ++j) {
+
+		result = ((seq[i] != seq[j]) || (seq[i+1] != seq[j-1]));
+	}
+
+	return result;
+}
+
 int main() {
 
 	auto filename = std::string{"ip_list.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
-
-		auto has_norm_tls_support = [] (auto& seq) {
-			auto result = false;
-
-			for(auto i = 0UL, j = (i + 3); !result && (j < seq.size()); ++i, ++j) {
-
-				result = ((seq[i] != seq[i+1]) && (seq[i] == seq[j]) && (seq[i+1] == seq[j-1]));
-			}
-
-			return result;
-		};
-
-		auto has_hyper_tls_support = [] (auto& seq) {
-			auto result = true;
-
-			for(auto i = 0UL, j = (i + 3); result && (j < seq.size()); ++i, ++j) {
-
-				result = ((seq[i] != seq[j]) || (seq[i+1] != seq[j-1]));
-			}
-
-			return result;
-		};
 
 		auto norm_sequences = std::vector<std::string>{};
 		auto hyper_sequences = std::vector<std::string>{};
@@ -65,11 +67,11 @@ int main() {
 				else { hyper_sequences.push_back(token); }
 			}
 
-			auto norm_supports_tls = std::any_of(norm_sequences.begin(), norm_sequences.end(), [&] (const auto& seq) {
+			auto norm_supports_tls = std::any_of(norm_sequences.begin(), norm_sequences.end(), [] (const auto& seq) {
 				return has_norm_tls_support(seq);
 			});
 
-			auto hyper_supports_tls = std::all_of(hyper_sequences.begin(), hyper_sequences.end(), [&] (const auto& seq) {
+			auto hyper_supports_tls = std::all_of(hyper_sequences.begin(), hyper_sequences.end(), [] (const auto& seq) {
 				return has_hyper_tls_support(seq);
 			});
 
