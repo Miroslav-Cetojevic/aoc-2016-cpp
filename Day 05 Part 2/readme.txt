@@ -32,3 +32,7 @@ Given the actual Door ID and this new method, what is the password? Be extra
 proud of your solution if it uses a cinematic "decrypting" animation.
 
 Your puzzle input is still reyedfim.
+
+Your puzzle answer was 863dde27.
+
+Both parts of this puzzle are complete! They provide two gold stars: **
