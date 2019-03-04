@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -10,57 +9,49 @@ int main() {
 
 	if(file.is_open()) {
 
-		auto compressed = std::string{};
-
-		file >> compressed;
-
-		auto decompressed = std::string{};
-
 		const auto mark_begin = '(';
 		const auto mark_end = ')';
 		const auto delimiter = 'x';
 
 		auto get_next = [] (auto number) { return ++number; };
 
-		auto get_value = [&] (auto start, auto pos) {
+		auto get_value = [&] (auto& compressed, auto start, auto pos) {
 			return std::stoul(compressed.substr(start, (pos - start)));
 		};
 
-		auto decompress = [&] (auto start, auto length, auto repeat) {
-			for(auto j = 0UL; j < repeat; ++j) {
-				decompressed += compressed.substr(start, length);
-			}
-		};
+		auto decompressed_length = 0UL;
+
+		auto compressed = std::string{};
+
+		file >> compressed;
 
 		for(auto i = 0UL; i < compressed.size();) {
 
 			if(compressed[i] == mark_begin) {
 
-				auto start = get_next(i);
+				auto length_begin = get_next(i);
+				auto length_end = compressed.find(delimiter, length_begin);
 
-				auto pos = compressed.find(delimiter, start);
+				auto length = get_value(compressed, length_begin, length_end);
 
-				auto length = get_value(start, pos);
+				auto repeat_begin = get_next(length_end);
+				auto repeat_end = compressed.find(mark_end, repeat_begin);
 
-				start = get_next(pos);
+				auto repeat = get_value(compressed, repeat_begin, repeat_end);
 
-				pos = compressed.find(mark_end, start);
+				for(auto j = 0UL; j < repeat; ++j) {
+					decompressed_length += length;
+				}
 
-				auto repeat = get_value(start, pos);
-
-				start = get_next(pos);
-
-				decompress(start, length, repeat);
-
-				i = (start + length);
+				i = (get_next(repeat_end) + length);
 
 			} else {
-				decompressed += compressed[i];
+				++decompressed_length;
 				++i;
 			}
 		}
 
-		std::cout << decompressed.size() << std::endl;
+		std::cout << decompressed_length << std::endl;
 
 	} else {
 		std::cerr << "Error! Could not open file \"" << filename << "\"!" << std::endl;
