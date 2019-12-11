@@ -1,23 +1,28 @@
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
-#include <boost/iterator/counting_iterator.hpp>
-
-#include "unordered_map.hpp"
-
-template<typename T>
-struct Range {
-	boost::counting_iterator<T, boost::use_default, T> begin, end;
-
-	Range(T b, T e): begin(b), end(e) {}
-};
+#include <boost/range/irange.hpp>
 
 struct Point {
-	std::intmax_t x = 0;
-	std::intmax_t y = 0;
+	std::int64_t x = 0;
+	std::int64_t y = 0;
 };
+
+auto& operator+=(Point& lhs, const Point& rhs) {
+	lhs.x += rhs.x;
+	lhs.y += rhs.y;
+	return lhs;
+}
+
+// this is not actually needed, but I'll keep it as a reference for
+// how to implement operator+ for a struct in terms of operator+=
+auto operator+(Point lhs, const Point& rhs) {
+	lhs += rhs;
+	return lhs;
+}
 
 auto operator==(const Point& lhs, const Point& rhs) {
 	return ((lhs.x == rhs.x) && (lhs.y == rhs.y));
@@ -32,7 +37,7 @@ struct Position {
 
 struct Situation {
 	Direction direction;
-	std::string turn;
+	char turn;
 };
 
 auto operator==(const Situation& lhs, const Situation& rhs) {
@@ -40,34 +45,38 @@ auto operator==(const Situation& lhs, const Situation& rhs) {
 }
 
 template<typename T>
-auto get_hash(T t) { return std::hash<T>{}(t); }
+auto get_hash(T value) {
+	return std::hash<T>{}(value);
+}
 
 namespace std {
 	template<>
 	struct hash<Point> {
 		auto operator()(const Point& point) const {
-			return std::bit_xor{}(get_hash(point.x), get_hash(point.y));
+			return (get_hash(point.x) ^ get_hash(point.y));
 		}
 	};
 
 	template<>
 	struct hash<Situation> {
 		auto operator()(const Situation& situation) const {
-			return std::bit_xor{}(get_hash(situation.direction), get_hash(situation.turn));
+			return (get_hash(situation.direction) ^ get_hash(situation.turn));
 		}
 	};
 }
 
 int main() {
-	auto filename = std::string{"directions.txt"};
+
+	const auto filename = std::string{"directions.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
-		const auto left = std::string("L");
-		const auto right = std::string("R");
+		const auto left = 'L';
+		const auto right = 'R';
 
-		auto dir_switch = ska::unordered_map<Situation, Direction>{
+		// get the new direction you are facing after the turn
+		const auto guide = std::unordered_map<Situation, Direction>{
 			{{Direction::NORTH, left}, Direction::WEST},
 			{{Direction::NORTH, right}, Direction::EAST},
 			{{Direction::EAST, left}, Direction::NORTH},
@@ -78,39 +87,49 @@ int main() {
 			{{Direction::WEST, right}, Direction::NORTH}
 		};
 
-		auto steps = ska::unordered_map<Direction, intmax_t>{
-			{Direction::NORTH, 1},
-			{Direction::EAST, 1},
-			{Direction::SOUTH, -1},
-			{Direction::WEST, -1}
+		// converts a move in any direction to the corresponding
+		// unit of distance, in this case, Point
+		const auto point_units = std::unordered_map<Direction, Point>{
+			{Direction::NORTH, {0, 1}},
+			{Direction::EAST, {1, 0}},
+			{Direction::SOUTH, {0, -1}},
+			{Direction::WEST, {-1, 0}}
 		};
 
 		auto pos = Position{};
+		auto& point = pos.point;
+		auto& direction = pos.direction;
 
-		auto locations = ska::unordered_set<Point>{};
-		locations.emplace(pos.point);
+		auto locations = std::unordered_set<Point>{point};
 
 		auto revisited = false;
-		std::string input;
-		while(!revisited && (file >> input)) {
 
-			const auto turn = input.substr(0, 1);
-			pos.direction = dir_switch[{pos.direction, turn}];
+		std::string instruction;
 
-			auto& point = pos.point;
-			const auto dir = pos.direction;
-			auto& coordinate = ((dir == Direction::EAST || dir == Direction::WEST) ? point.x : point.y);
+		while(!revisited && (file >> instruction)) {
 
-			auto blocks = std::stoul(input.substr(1, (input.size() - 1)));
-			auto range = Range<decltype(blocks)>{0, blocks};
+			const auto turn = instruction.front();
 
-			revisited = std::any_of(range.begin, range.end, [&steps, &locations, &point, dir, &coordinate] (auto) {
-				coordinate += steps[dir];
-				return !(locations.emplace(point).second);
-			});
+			direction = guide.find({direction, turn})->second;
+
+			auto blocks = std::stoul(instruction.substr(1, (instruction.size() - 1)));
+
+			for(const auto i : boost::irange(blocks)) {
+
+				point += point_units.find(direction)->second;
+
+				// we make use of the fact that a set will fail to insert
+				// an element if it's already present, so the first failed
+				// insertion is our cue to leave the loop
+				revisited = !(locations.emplace(point).second);
+
+				if(revisited) {
+					break;
+				}
+			}
 		}
 
-		auto distance = (std::abs(pos.point.x) + std::abs(pos.point.y));
+		const auto distance = (std::abs(point.x) + std::abs(point.y));
 
 		std::cout << distance << std::endl;
 
