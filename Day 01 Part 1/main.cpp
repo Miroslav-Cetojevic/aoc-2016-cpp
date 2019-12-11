@@ -1,60 +1,89 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 
 enum class Direction { NORTH, EAST, SOUTH, WEST };
 
 struct Position {
-	std::intmax_t x = 0;
-	std::intmax_t y = 0;
+	std::int64_t x = 0;
+	std::int64_t y = 0;
 	Direction facing = Direction::NORTH;
 };
 
+struct Situation {
+	Direction facing;
+	char turn;
+};
+
+auto operator==(const Situation& lhs, const Situation& rhs) {
+	return ((lhs.facing == rhs.facing) && (lhs.turn == rhs.turn));
+}
+
+template<typename T>
+auto get_hash(T value) {
+	return std::hash<T>{}(value);
+}
+
+namespace std {
+	template<>
+	struct hash<Situation> {
+		auto operator()(const Situation& situation) const {
+			return (get_hash(situation.facing) ^ get_hash(situation.turn));
+		}
+	};
+}
+
 int main() {
-	auto filename = std::string{"directions.txt"};
+
+	const auto filename = std::string{"directions.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
-		const auto right = std::string("R");
-		const auto left = std::string("L");
-
 		auto pos = Position{};
 
+		const auto relocate = [&pos] (auto facing, auto blocks) {
+
+			switch(facing) {
+				case Direction::NORTH: pos.y += blocks; break;
+				case Direction::EAST : pos.x += blocks; break;
+				case Direction::SOUTH: pos.y -= blocks; break;
+				case Direction::WEST : pos.x -= blocks; break;
+				default: std::cerr << "WTF?!?" << std::endl;
+			}
+
+			pos.facing = facing;
+		};
+
+		const auto L = 'L';
+		const auto R = 'R';
+
+		auto guide = std::unordered_map<Situation, Direction>{
+			{{Direction::NORTH, L}, Direction::WEST},
+			{{Direction::NORTH, R}, Direction::EAST},
+			{{Direction::EAST, L}, Direction::NORTH},
+			{{Direction::EAST, R}, Direction::SOUTH},
+			{{Direction::SOUTH, L}, Direction::EAST},
+			{{Direction::SOUTH, R}, Direction::WEST},
+			{{Direction::WEST, L}, Direction::SOUTH},
+			{{Direction::WEST, R}, Direction::NORTH}
+		};
+
 		std::string instruction;
+
 		while(file >> instruction) {
 
-			auto confirmed = [&pos, &instruction] (const auto& turn, auto facing) {
-				return (pos.facing == facing && instruction.substr(0, 1) == turn);
-			};
+			const auto blocks = std::stol(instruction.substr(1, (instruction.size() - 1)));
 
-			auto relocate = [&pos] (auto& coordinate, auto blocks, auto facing) {
-				coordinate += blocks;
-				pos.facing = facing;
-			};
+			const auto turn = instruction.front();
 
-			auto blocks = std::stoul(instruction.substr(1, (instruction.size() - 1)));
+			const auto new_direction = guide[{pos.facing, turn}];
 
-			if(confirmed(right, Direction::NORTH) || confirmed(left, Direction::SOUTH)) {
-
-				relocate(pos.x, blocks, Direction::EAST);
-
-			} else if(confirmed(left, Direction::NORTH) || confirmed(right, Direction::SOUTH)) {
-
-				relocate(pos.x, (-blocks), Direction::WEST);
-
-			} else if(confirmed(left, Direction::EAST) || confirmed(right, Direction::WEST)) {
-
-				relocate(pos.y, blocks, Direction::NORTH);
-
-			} else {
-
-				relocate(pos.y, (-blocks), Direction::SOUTH);
-
-			}
+			relocate(new_direction, blocks);
 		}
 
-		auto distance = (std::abs(pos.x) + std::abs(pos.y));
+		const auto distance = (std::abs(pos.x) + std::abs(pos.y));
 
 		std::cout << distance << std::endl;
 
