@@ -5,9 +5,7 @@
 #include <string>
 
 struct Triangle {
-	std::uintmax_t a;
-	std::uintmax_t b;
-	std::uintmax_t c;
+	std::uint64_t a, b, c;
 };
 
 struct TripleTriangle {
@@ -22,19 +20,21 @@ auto& operator>>(std::istream& in, TripleTriangle& tt) {
 
 template<typename T>
 auto is_triangle_valid(const T& triangle) {
-	return ((triangle.a + triangle.b) > triangle.c)
-		   && ((triangle.a + triangle.c) > triangle.b)
-		   && ((triangle.b + triangle.c) > triangle.a);
+	const auto a = triangle.a;
+	const auto b = triangle.b;
+	const auto c = triangle.c;
+
+	return ((a + b) > c) && ((a + c) > b) && ((b + c) > a);
 }
 
 int main() {
 
-	auto filename = std::string{"triangles.txt"};
+	const auto filename = std::string{"triangles.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
-		auto count = std::accumulate(std::istream_iterator<TripleTriangle>{file}, {}, 0UL, [] (auto acc, const auto& tt) {
+		auto count = std::accumulate(std::istream_iterator<TripleTriangle>{file}, {}, 0, [] (auto acc, const auto& tt) {
 			return acc + is_triangle_valid(tt.A)
 					   + is_triangle_valid(tt.B)
 					   + is_triangle_valid(tt.C);
