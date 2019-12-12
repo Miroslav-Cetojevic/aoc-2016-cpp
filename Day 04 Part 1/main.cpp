@@ -1,9 +1,6 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <iterator>
-#include <numeric>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -82,8 +79,8 @@ int main() {
 
 			const auto validator = std::adjacent_find(checksum_begin, checksum_end, comparator);
 
-			// we need to go through the whole checksum
-			// before we can conclude that it's valid
+			// we need to go through the whole checksum before we can conclude that it's valid,
+			// so the only way it COULD be valid is if the validator is at the end of it
 			const auto is_checksum_valid = (validator == checksum_end);
 
 			if(is_checksum_valid) {
