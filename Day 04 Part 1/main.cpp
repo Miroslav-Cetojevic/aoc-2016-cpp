@@ -8,14 +8,27 @@
 #include <unordered_map>
 #include <vector>
 
-// a proxy to enable the usage of istream_iterator that reads line by line
-struct Reader {
-	std::string line;
-};
+void my_split(std::vector<std::string>& tokens, const std::string& str, const std::string& delims = " ") {
 
-// allows the istream_iterator to read a file line by line
-auto& operator>>(std::istream& in, Reader& reader) {
-	return std::getline(in, reader.line);
+	tokens.clear();
+
+    decltype(tokens.size()) current, previous = 0;
+
+    current = str.find_first_of(delims);
+
+    while(current != std::string::npos) {
+
+        tokens.push_back(str.substr(previous, current - previous));
+
+        previous = (current + 1);
+
+        current = str.find_first_of(delims, previous);
+    }
+
+    // there's still some string left
+    if(previous < str.size()) {
+    	tokens.push_back(str.substr(previous));
+    }
 }
 
 int main() {
@@ -25,59 +38,61 @@ int main() {
 
 	if(file.is_open()) {
 
-		using Count = std::uintmax_t;
-		using LetterMap = std::unordered_map<char, Count>;
-		auto letter_map = LetterMap{};
+		auto sum = std::uint64_t{};
+
+		using Count = std::uint64_t;
+
+		auto letter_counts = std::unordered_map<char, Count>{};
 
 		auto tokens = std::vector<std::string>{};
 
-		auto sstream = std::stringstream{};
+		std::string line;
 
-		std::string token;
+		while(std::getline(file, line)) {
 
-		auto sum_id = std::accumulate(std::istream_iterator<Reader>{file}, {}, 0UL, [&] (auto acc, const auto& reader) {
+			my_split(tokens, line, "-[]");
 
-			sstream.clear();
-			sstream.str(reader.line);
+			letter_counts.clear();
 
-			tokens.clear();
-			while(sstream >> token) {
-				tokens.push_back(token);
-			}
+			std::for_each(tokens.begin(), (tokens.end() - 2), [&letter_counts] (const auto& token) {
 
-			letter_map.clear();
-			std::for_each(tokens.begin(), (tokens.end() - 2), [&letter_map] (const auto& token) {
 				for(const auto letter : token) {
-					++letter_map[letter];
+					++letter_counts[letter];
 				}
 			});
 
 			// last token is always the checksum
 			const auto& checksum = tokens.back();
 
-			// adjacent_find returns the iterator to the first pair of elements for which the predicate returns true.
-			// In this particular case, the intent is to find out if the checksum has a valid ordering of its letters,
-			// i.e letters are first sorted by frequency, then by alphabet. We want adjacent_find to return the end()
-			// iterator to indicate a valid checksum, thus we negate the result of our validation.
-			const auto validator = std::adjacent_find(checksum.begin(), checksum.end(),
-													  [&] (const auto prev_letter, const auto curr_letter) {
-				auto prev_letter_count = letter_map[prev_letter];
-				auto curr_letter_count = letter_map[curr_letter];
+			const auto checksum_begin = checksum.begin();
+			const auto checksum_end   = checksum.end();
 
-				auto letters_exist = (prev_letter_count > 0 && curr_letter_count > 0);
-				auto ordered_by_frequency = (prev_letter_count > curr_letter_count);
-				auto tied_by_frequency = (prev_letter_count == curr_letter_count);
-				auto ordered_by_alphabet = (prev_letter < curr_letter);
+			const auto comparator = [&letter_counts] (const auto first_letter, const auto second_letter) {
+
+				const auto first_letter_count = letter_counts[first_letter];
+				const auto second_letter_count = letter_counts[second_letter];
+
+				const auto letters_exist = (first_letter_count > 0 && second_letter_count > 0);
+				const auto ordered_by_frequency = (first_letter_count > second_letter_count);
+				const auto tied_by_frequency = (first_letter_count == second_letter_count);
+				const auto ordered_by_alphabet = (first_letter < second_letter);
 
 				return !(letters_exist && (ordered_by_frequency || (tied_by_frequency && ordered_by_alphabet)));
-			});
+			};
 
-			auto checksum_ok = (validator == checksum.end());
+			const auto validator = std::adjacent_find(checksum_begin, checksum_end, comparator);
 
-			return acc + (checksum_ok ? std::stoul(tokens[tokens.size()-2]) : 0);
-		});
+			// we need to go through the whole checksum
+			// before we can conclude that it's valid
+			const auto is_checksum_valid = (validator == checksum_end);
 
-		std::cout << sum_id << std::endl;
+			if(is_checksum_valid) {
+				sum += std::stoul(tokens[tokens.size()-2]);
+			}
+
+		}
+
+		std::cout << sum << std::endl;
 
 	} else {
 		std::cerr << "Error! Could not open file \"" << filename << "\"!" << std::endl;
