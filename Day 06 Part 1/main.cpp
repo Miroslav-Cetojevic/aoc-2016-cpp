@@ -1,42 +1,40 @@
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include <boost/iterator/counting_iterator.hpp>
+#include <boost/range/irange.hpp>
 
-#include "flat_hash_map.hpp"
-
-template<typename T>
-struct Range {
-	boost::counting_iterator<T, boost::use_default, T> begin, end;
-	Range(T b, T e): begin(b), end(e) {}
-};
+using uint64 = std::uint64_t;
 
 // a convenient way to track which letter is most frequently used
-struct MaxFrequencyLetter {
-	std::uintmax_t count;
+struct CharFrequencyTracker {
 	char letter;
-
-	auto clear() {
-		count = 0;
-		letter = char{};
-	}
+	uint64 count;
 };
 
-auto operator<(const MaxFrequencyLetter& lhs, const MaxFrequencyLetter& rhs) {
+auto operator<(const CharFrequencyTracker& lhs, const CharFrequencyTracker& rhs) {
 	return (lhs.count < rhs.count);
+}
+
+template<typename M>
+auto map_reset_values(M&& map) {
+	for(auto& pair : map) {
+	    pair.second = {};
+	}
 }
 
 int main() {
 
-	auto filename = std::string{"message.txt"};
+	const auto filename = std::string{"message.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
+		// in order to transpose the input line by line, we will need a string for each column,
+		// so that we can add the letter from the same column to the same string on each line
 		auto transposed_msg = std::vector<std::string>{};
 
 		auto line = std::string{};
@@ -44,41 +42,43 @@ int main() {
 		// initialize the transposed message
 		file >> line;
 		for(const auto letter : line) {
-
-			transposed_msg.push_back({});
-
-			transposed_msg.back() += letter;
+			transposed_msg.push_back({letter});
 		}
-
-		auto range = Range{0UL, line.size()};
 
 		while(file >> line) {
-
-			std::for_each(range.begin, range.end, [&] (auto i) {
+			for(const auto i : boost::irange(line.size())) {
 				transposed_msg[i] += line[i];
-			});
-
+			}
 		}
 
-		auto letter_count = ska::flat_hash_map<char, std::uintmax_t>{};
-		auto max_count = MaxFrequencyLetter{};
+		const auto begin = transposed_msg.begin();
+		const auto end   = transposed_msg.end();
+		const auto init  = std::string{};
 
-		auto message = std::accumulate(transposed_msg.begin(), transposed_msg.end(), std::string{},
-									   [&] (auto& msg, const auto& column) {
-			letter_count.clear();
+		using LetterCounts = std::unordered_map<char, uint64>;
+
+		// a mutable lambda will let us keep the state of letter_counts,
+		// even if it's called again with new arguments
+		const auto count = [letter_counts = LetterCounts{}] (auto& msg, const auto& column) mutable {
+
+			// we can still use the keys collected so far,
+			// only the values need to be reset to default
+			map_reset_values(letter_counts);
 
 			for(const auto letter : column) {
-				++letter_count[letter];
+				++letter_counts[letter];
 			}
 
-			max_count.clear();
+			auto most_frequent_letter = CharFrequencyTracker{};
 
-			for(const auto letter : letter_count) {
-				max_count = std::max(max_count, MaxFrequencyLetter{letter.second, letter.first});
+			for(const auto letter : letter_counts) {
+				most_frequent_letter = std::max(most_frequent_letter, {letter.first, letter.second});
 			}
 
-			return (msg += max_count.letter);
-		});
+			return (msg += most_frequent_letter.letter);
+		};
+
+		const auto message = std::accumulate(begin, end, init, count);
 
 		std::cout << message << std::endl;
 
