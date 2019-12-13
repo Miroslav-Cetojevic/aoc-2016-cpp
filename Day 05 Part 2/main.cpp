@@ -1,5 +1,10 @@
 /*
- * NOTE: this code uses the poco library and is compiled with the -lPocoFoundation flag
+ * NOTE:
+ *
+ * I'm using the following flags:
+ *
+ * Linker: -lPocoFoundation
+ *
  */
 #include <algorithm>
 #include <iostream>
@@ -9,43 +14,59 @@
 #include <Poco/DigestStream.h>
 #include <Poco/MD5Engine.h>
 
+#include <boost/range/irange.hpp>
+
+// NOTE: this program takes a couple seconds to run
 int main() {
 
-	auto pwd = std::string{};
-	constexpr auto pwdlen = 8UL;
-	constexpr auto empty = '_';
-	pwd.resize(pwdlen);
-	std::fill(pwd.begin(), pwd.end(), empty);
+	using uint64 = std::uint64_t;
+
+	constexpr auto pwdlen = uint64{8};
+	constexpr auto empty = ' ';
+
+	auto pwd = std::string(pwdlen, empty);
 
 	const auto door_id = std::string{"reyedfim"};
 
 	const auto prefix = std::string{"00000"};
-	const auto pxsize = prefix.size();
-	const auto letter_pos = (pxsize + 1);
+	const auto prefix_size = prefix.size();
+
+	const auto letter_pos = (prefix_size + 1);
+
+	auto letter_count = uint64{};
 
 	auto md5 = Poco::MD5Engine{};
-	auto out = Poco::DigestOutputStream{md5};
+	auto out_stream = Poco::DigestOutputStream{md5};
 
-	for(auto i = 0UL, letter_count = 0UL; (letter_count < pwdlen); ++i) {
+	for(const auto i : boost::irange(std::numeric_limits<uint64>::max())) {
 
-		out << door_id << i;
+		out_stream << door_id << i;
 
-		out.flush();
+		out_stream.close();
 
 		const auto result = Poco::DigestEngine::digestToHex(md5.digest());
 
-		const auto has_prefix = (result.compare(0, pxsize, prefix) == 0);
+		const auto has_prefix = (result.compare(0, prefix_size, prefix) == 0);
 
-		const auto pwd_pos = result[pxsize];
+		if(has_prefix) {
 
-		auto& pwd_letter = pwd[pwd_pos-'0'];
+			const auto pwd_pos = result[prefix_size];
 
-		auto is_valid = (std::isdigit(pwd_pos) != 0) && (pwd_letter == empty);
+			if(std::isdigit(pwd_pos)) {
 
-		if(has_prefix && is_valid) {
-			pwd_letter = result[letter_pos];
+				auto& pwd_letter = pwd[pwd_pos-'0'];
 
-			++letter_count;
+				// we want to avoid overwriting an already filled position of the password
+				if(pwd_letter == empty) {
+
+					pwd_letter = result[letter_pos];
+					++letter_count;
+
+					if(letter_count >= pwdlen) {
+						break;
+					}
+				}
+			}
 		}
 	}
 
