@@ -1,44 +1,35 @@
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <numeric>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include <boost/iterator/counting_iterator.hpp>
+#include <boost/range/irange.hpp>
 
-#include "flat_hash_map.hpp"
+using uint64 = std::uint64_t;
 
-template<typename T>
-struct Range {
-	boost::counting_iterator<T, boost::use_default, T> begin, end;
-	Range(T b, T e): begin(b), end(e) {}
-};
-
-// track the least used letter
-auto MAX = std::numeric_limits<std::uintmax_t>::max();
-
-struct MinFrequencyLetter {
-	std::uintmax_t count = MAX;
+// a convenient way to track the frequency of a letter
+struct CharFrequencyTracker {
 	char letter;
-
-	auto clear() {
-		count = MAX;
-		letter = char{};
-	}
+	uint64 count;
+	CharFrequencyTracker() : letter{}, count{std::numeric_limits<uint64>::max()} {}
+	CharFrequencyTracker(std::pair<char, uint64> p) : letter{p.first}, count{p.second} {}
 };
 
-auto operator<(const MinFrequencyLetter& lhs, const MinFrequencyLetter& rhs) {
+auto operator<(const CharFrequencyTracker& lhs, const CharFrequencyTracker& rhs) {
 	return (lhs.count < rhs.count);
 }
 
 int main() {
 
-	auto filename = std::string{"message.txt"};
+	const auto filename = std::string{"message.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
+		// in order to transpose the input line by line, we will need a string for each column,
+		// so that we can add the letter from the same column to the same string on each line
 		auto transposed_msg = std::vector<std::string>{};
 
 		auto line = std::string{};
@@ -46,42 +37,37 @@ int main() {
 		// initialize the transposed message
 		file >> line;
 		for(const auto letter : line) {
-
-			transposed_msg.push_back({});
-
-			transposed_msg.back() += letter;
+			transposed_msg.push_back({letter});
 		}
-
-		auto range = Range{0UL, line.size()};
 
 		while(file >> line) {
-
-			std::for_each(range.begin, range.end, [&] (auto i) {
+			for(const auto i : boost::irange(line.size())) {
 				transposed_msg[i] += line[i];
-			});
-
+			}
 		}
 
-		auto letter_count = ska::flat_hash_map<char, std::uintmax_t>{};
-		auto min_count = MinFrequencyLetter{};
+		const auto begin = transposed_msg.begin();
+		const auto end   = transposed_msg.end();
+		const auto init  = std::string{};
 
-		auto message = std::accumulate(transposed_msg.begin(), transposed_msg.end(), std::string{},
-									   [&] (auto& msg, const auto& column) {
+		const auto binop = [] (auto& msg, const auto& column) {
 
-			letter_count.clear();
+			auto letter_counts = std::unordered_map<char, uint64>{};
 
 			for(const auto letter : column) {
-				++letter_count[letter];
+				++letter_counts[letter];
 			}
 
-			min_count.clear();
+			auto least_frequent_letter = CharFrequencyTracker{};
 
-			for(const auto letter : letter_count) {
-				min_count = std::min(min_count, MinFrequencyLetter{letter.second, letter.first});
+			for(const auto& letter : letter_counts) {
+				least_frequent_letter = std::min(least_frequent_letter, {letter});
 			}
 
-			return (msg += min_count.letter);
-		});
+			return (msg += least_frequent_letter.letter);
+		};
+
+		const auto message = std::accumulate(begin, end, init, binop);
 
 		std::cout << message << std::endl;
 
