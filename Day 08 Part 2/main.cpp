@@ -5,12 +5,27 @@
 #include <string>
 #include <unordered_map>
 
+#include <boost/range/irange.hpp>
+
+using uint64 = std::uint64_t;
+
+struct Arguments {
+	std::string strcmd;
+	uint64 A, B;
+};
+
+auto& operator>>(std::istream& in, Arguments& args) {
+	return in >> args.strcmd >> args.A >> args.B;
+}
+
+// tmp_screen is unnecessary as we are not doing any
+// intermediate steps, thus we don't need to save any state
 template<typename S, typename N>
-auto rect(S& screen, S&, const N width, const N height) {
+auto set_rectangle(S& screen, S&, N width, N height) {
 
-	for(auto row = 0UL; row < height; ++row) {
+	for(const auto row : boost::irange(height)) {
 
-		for(auto col = 0UL; col < width; ++col) {
+		for(const auto col : boost::irange(width)) {
 
 			screen[row][col] = true;
 		}
@@ -18,17 +33,30 @@ auto rect(S& screen, S&, const N width, const N height) {
 }
 
 template<typename S, typename N>
-auto rotrow(S& screen, S& tmp_screen, const N row, const N shift) {
+auto shift_row(S& screen, S& tmp_screen, N row, N shift) {
 
 	tmp_screen = screen;
 
-	for(auto& col : tmp_screen[row]) { col = false; }
+	// on the temporary screen, the row is set to all-false
+	// so that we can lay the original screen over it, and
+	// based on the state of the original screen we can set
+	// the columns on the temporary screen to true as if we
+	// had shifted the row of the original screen
+	for(auto& col : tmp_screen[row]) {
+		col = false;
+	}
 
-	auto width = tmp_screen[row].size();
+	const auto width = tmp_screen[row].size();
 
-	for(auto col = 0UL; col < width; ++col) {
+	for(const auto col : boost::irange(width)) {
+
+		// if the current column on the original screen is lit,
+		// we can start doing the shifting and apply the result
+		// to the corresponding column on the temporary screen
 		if(screen[row][col]) {
-			auto new_pos = ((col + shift) % width);
+
+			const auto new_pos = ((col + shift) % width);
+
 			tmp_screen[row][new_pos] = true;
 		}
 	}
@@ -36,18 +64,24 @@ auto rotrow(S& screen, S& tmp_screen, const N row, const N shift) {
 	screen = tmp_screen;
 }
 
+// works the same way as shift_row(), except the shift applies to columns instead of rows
 template<typename S, typename N>
-auto rotcol(S& screen, S& tmp_screen, const N col, const N shift) {
+auto shift_col(S& screen, S& tmp_screen, N col, N shift) {
 
 	tmp_screen = screen;
 
-	for(auto& row : tmp_screen) { row[col] = false; };
+	for(auto& row : tmp_screen) {
+		row[col] = false;
+	};
 
-	auto height = screen.size();
+	const auto height = tmp_screen.size();
 
-	for(auto row = 0UL; row < height; ++row) {
+	for(const auto row : boost::irange(height)) {
+
 		if(screen[row][col]) {
-			auto new_row = ((row + shift) % height);
+
+			const auto new_row = ((row + shift) % height);
+
 			tmp_screen[new_row][col] = true;
 		}
 	}
@@ -55,52 +89,48 @@ auto rotcol(S& screen, S& tmp_screen, const N col, const N shift) {
 	screen = tmp_screen;
 }
 
-struct Args {
-	std::string cmd;
-	std::uintmax_t A, B;
-};
-
-auto& operator>>(std::istream& in, Args& args) {
-	return in >> args.cmd >> args.A >> args.B;
-}
-
 template<typename S>
 auto print(const S& screen) {
+
 	for(const auto& row : screen) {
+
 		for(const auto col : row) {
 			std::cout << (col ? '#' : ' ');
 		}
+
 		std::cout << "\n";
 	}
-	std::cout << std::endl;
+
+	std::cout.flush();
 }
 
 int main() {
 
-	auto filename = std::string{"operations.txt"};
+	const auto filename = std::string{"operations.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
 
-		constexpr auto width = 50UL;
-		constexpr auto height = 6UL;
+		constexpr auto width = uint64{50};
+		constexpr auto height = uint64{6};
 
-		using Bool = std::uint8_t;
-		auto screen = std::array<std::array<Bool, width>, height>{};
-		auto tmp_screen = decltype(screen){};
+		using Array2D = std::array<std::array<bool, width>, height>;
 
-		using cmd = void (*) (decltype(screen)&, decltype(tmp_screen)&, decltype(width), decltype(height));
+		auto screen = Array2D{};
+		auto tmp_screen = screen;
 
-		auto cmd_map = std::unordered_map<std::string, cmd>{
-			{"rect", rect},
-			{"rotrow", rotrow},
-			{"rotcol", rotcol}
+		using Command = void (*) (decltype(screen)&, decltype(tmp_screen)&, decltype(width), decltype(height));
+
+		auto commands = std::unordered_map<std::string, Command>{
+			{"rect", set_rectangle},
+			{"row", shift_row},
+			{"col", shift_col}
 		};
 
-		auto args = Args{};
+		auto args = Arguments{};
 
 		while(file >> args) {
-			cmd_map[args.cmd](screen, tmp_screen, args.A, args.B);
+			commands[args.strcmd](screen, tmp_screen, args.A, args.B);
 		}
 
 		print(screen);
