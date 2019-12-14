@@ -6,19 +6,14 @@
 #include <string>
 #include <vector>
 
-struct Reader {
-	std::string line;
-};
-
-auto& operator>>(std::istream& in, Reader& reader) {
-	return std::getline(in, reader.line);
-}
+using uint64 = std::uint64_t;
 
 template<typename S>
 auto has_norm_tls_support(const S& seq) {
+
 	auto result = false;
 
-	for(auto i = 0UL, j = (i + 3); !result && (j < seq.size()); ++i, ++j) {
+	for(uint64 i = 0, j = (i + 3); !result && (j < seq.size()); ++i, ++j) {
 
 		result = ((seq[i] != seq[i+1]) && (seq[i] == seq[j]) && (seq[i+1] == seq[j-1]));
 	}
@@ -28,9 +23,10 @@ auto has_norm_tls_support(const S& seq) {
 
 template<typename S>
 auto has_hyper_tls_support(const S& seq) {
+
 	auto result = true;
 
-	for(auto i = 0UL, j = (i + 3); result && (j < seq.size()); ++i, ++j) {
+	for(uint64 i = 0, j = (i + 3); result && (j < seq.size()); ++i, ++j) {
 
 		result = ((seq[i] != seq[j]) || (seq[i+1] != seq[j-1]));
 	}
@@ -40,10 +36,12 @@ auto has_hyper_tls_support(const S& seq) {
 
 int main() {
 
-	auto filename = std::string{"ip_list.txt"};
+	const auto filename = std::string{"ip_list.txt"};
 	auto file = std::fstream{filename};
 
 	if(file.is_open()) {
+
+		auto num_ips = uint64{};
 
 		auto norm_sequences = std::vector<std::string>{};
 		auto hyper_sequences = std::vector<std::string>{};
@@ -51,35 +49,53 @@ int main() {
 		auto sstream = std::stringstream{};
 		auto token = std::string{};
 
-		auto tls_count = std::count_if(std::istream_iterator<Reader>{file}, {}, [&] (auto& reader) {
+		std::string line;
+
+		while(std::getline(file, line)) {
 
 			norm_sequences.clear();
 			hyper_sequences.clear();
 
 			sstream.clear();
-			sstream.str(reader.line);
+			sstream.str(line);
 
-			auto id = 0UL;
 			while(sstream >> token) {
-
+				norm_sequences.push_back(token);
 				// we know every second sequence is a hypernet sequence
-				if(id++ % 2 == 0) { norm_sequences.push_back(token); }
-				else { hyper_sequences.push_back(token); }
+				if(sstream >> token) {
+					hyper_sequences.push_back(token);
+				}
 			}
 
-			auto norm_supports_tls = std::any_of(norm_sequences.begin(), norm_sequences.end(), [] (const auto& seq) {
-				return has_norm_tls_support(seq);
-			});
+			// ====================
+			// normal net sequences
+			// ====================
+			const auto norm_begin = norm_sequences.begin();
+			const auto norm_end   = norm_sequences.end();
 
-			auto hyper_supports_tls = std::all_of(hyper_sequences.begin(), hyper_sequences.end(), [] (const auto& seq) {
-				return has_hyper_tls_support(seq);
-			});
+			const auto norm_support = [] (const auto& sequence) {
+				return has_norm_tls_support(sequence);
+			};
 
-			return (norm_supports_tls && hyper_supports_tls);
+			const auto norm_supports_tls = std::any_of(norm_begin, norm_end, norm_support);
 
-		});
+			// ====================
+			// hyper net sequences
+			// ====================
+			const auto hyper_begin = hyper_sequences.begin();
+			const auto hyper_end = hyper_sequences.end();
 
-		std::cout << tls_count << std::endl;
+			const auto hyper_support = [] (const auto& sequence) {
+				return has_hyper_tls_support(sequence);
+			};
+
+			const auto hyper_supports_tls = std::all_of(hyper_begin, hyper_end, hyper_support);
+
+			// number of ip addresses that support TLS
+			num_ips += (norm_supports_tls && hyper_supports_tls);
+		}
+
+		std::cout << num_ips << std::endl;
 
 	} else {
 		std::cerr << "Error! Could not open file \"" << filename << "\"!" << std::endl;
